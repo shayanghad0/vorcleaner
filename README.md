@@ -39,10 +39,10 @@
 ### 🔧 Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install PyQt5 plyer
 ```
 
-**`requirements.txt`**
+**`requirements`**
 ```
 PyQt5
 plyer
