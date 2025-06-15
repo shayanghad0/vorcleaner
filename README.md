@@ -24,13 +24,6 @@
 
 ---
 
-## 🖼️ Preview
-
-![Vorcleaner Screenshot Light](https://your-screenshot-link-here)
-![Vorcleaner Screenshot Dark](https://your-screenshot-link-here)
-
----
-
 ## 📦 Requirements
 
 - Python 3.8+
