@@ -5,16 +5,36 @@
 
 version: 2
 updates:
-  # For Python dependencies
+  # Python dependencies (pip)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tehran"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "⬆️"
+      prefix-development: "🔧"
+      include: "scope"
+    versioning-strategy: "auto"
+    allow:
+      - dependency-type: "all"
+    ignore:
+      - dependency-name: "PyQt5"
+        update-types: ["version-update:semver-major"]  # Don't break major versions
+    reviewers:
+      - "shayanghad0"
     
-  # For GitHub Actions
+  # GitHub Actions (if you add any later)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    labels:
+      - "github-actions"
+      - "dependencies"
