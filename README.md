@@ -90,8 +90,6 @@ Created by **Shayan Ghadamian**
 
 > Open to contributions, feedback, and ideas!
 
-
-
 ## 📜 License
 
 This project is licensed under the [MIT License](LICENSE).
