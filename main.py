@@ -7,11 +7,11 @@ import sys
 import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout,
-    QLabel, QProgressBar, QTextEdit, QHBoxLayout
+    QLabel, QProgressBar, QTextEdit, QHBoxLayout,
+    QFrame, QGraphicsDropShadowEffect
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
-from plyer import notification
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QFont, QIcon, QLinearGradient, QColor, QPainter, QPainterPath
 
 
 def is_admin():
@@ -25,6 +25,50 @@ if not is_admin():
         None, "runas", sys.executable, ' '.join(sys.argv), None, 1
     )
     sys.exit()
+
+# ─── Color Palette ────────────────────────────────────────────────────────────
+DARK = {
+    "bg":          "#0b0b19",
+    "surface":     "#12122a",
+    "surface2":    "#1a1a35",
+    "surface3":    "#222244",
+    "border":      "#2a2a50",
+    "accent":      "#00d4ff",
+    "accent_dim":  "#0099bb",
+    "accent_glow": "#00d4ff33",
+    "danger":      "#ff4757",
+    "danger_dim":  "#cc3040",
+    "success":     "#00e676",
+    "success_dim": "#00b85c",
+    "warning":     "#ffc107",
+    "text":        "#e8e8f0",
+    "text_dim":    "#8888aa",
+    "text_muted":  "#555577",
+    "log_bg":      "#0a0a1a",
+    "log_text":    "#7ec8e3",
+}
+
+LIGHT = {
+    "bg":          "#f0f2f5",
+    "surface":     "#ffffff",
+    "surface2":    "#f7f8fa",
+    "surface3":    "#ebedf0",
+    "border":      "#d5d8de",
+    "accent":      "#2563eb",
+    "accent_dim":  "#1d4ed8",
+    "accent_glow": "#2563eb22",
+    "danger":      "#ef4444",
+    "danger_dim":  "#dc2626",
+    "success":     "#22c55e",
+    "success_dim": "#16a34a",
+    "warning":     "#f59e0b",
+    "text":        "#1a1a2e",
+    "text_dim":    "#64748b",
+    "text_muted":  "#94a3b8",
+    "log_bg":      "#f8f9fb",
+    "log_text":    "#334155",
+}
+
 
 class CleanerThread(QThread):
     progress = pyqtSignal(int)
@@ -112,7 +156,6 @@ class CleanerThread(QThread):
             "C:/Windows/Logs/Diagnostic",
             "C:/Windows/Logs/WMI",
             "C:/ProgramData/Microsoft/Windows/Critical/Logs",
-            # ADDITIONAL 100+ DIRECTORIES START HERE
             f"C:/Users/{user}/AppData/Local/Discord/Cache",
             f"C:/Users/{user}/AppData/Local/Discord/Code Cache",
             f"C:/Users/{user}/AppData/Local/Slack/Cache",
@@ -267,77 +310,171 @@ class CleanerThread(QThread):
         self.done.emit(total_deleted)
 
 
+class GlassPanel(QFrame):
+    """A semi-transparent card panel with rounded corners and subtle border."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("glassPanel")
+
+
 class CacheCleanerApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🧹 Vorcleaner")
-        self.setGeometry(100, 100, 520, 440)
+        self.setWindowTitle("Vorcleaner")
+        self.setGeometry(100, 100, 540, 520)
+        self.setMinimumSize(480, 480)
         self.setWindowIcon(QIcon("vorcleaner.ico"))
         self.updates_disabled = False
+        self.current_theme = "dark"
         self.initUI()
-        self.apply_light_theme()
+        self.apply_dark_theme()
+
+    def _make_shadow(self, widget, blur=24, offset_y=4, color="#000000"):
+        shadow = QGraphicsDropShadowEffect(widget)
+        shadow.setBlurRadius(blur)
+        shadow.setOffset(0, offset_y)
+        shadow.setColor(QColor(color))
+        widget.setGraphicsEffect(shadow)
 
     def initUI(self):
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 16)
+        main_layout.setSpacing(0)
 
-        # HEADER
-        header_layout = QHBoxLayout()
-        self.dark_mode_btn = QPushButton("🌙")
+        # ── HEADER ────────────────────────────────────────────────────────────
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(0)
+
+        title_block = QVBoxLayout()
+        title_block.setSpacing(2)
+
+        self.title = QLabel("Vorcleaner")
+        self.title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.title.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        self.title.setObjectName("appTitle")
+
+        subtitle = QLabel("System Cache & Junk Cleaner")
+        subtitle.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        subtitle.setFont(QFont("Segoe UI", 9))
+        subtitle.setObjectName("appSubtitle")
+        title_block.addWidget(self.title)
+        title_block.addWidget(subtitle)
+
+        header.addLayout(title_block)
+        header.addStretch()
+
+        self.dark_mode_btn = QPushButton("  DARK  ")
+        self.dark_mode_btn.setObjectName("themeBtnDark")
+        self.dark_mode_btn.setFixedHeight(30)
+        self.dark_mode_btn.setCursor(Qt.PointingHandCursor)
         self.dark_mode_btn.clicked.connect(self.apply_dark_theme)
-        self.light_mode_btn = QPushButton("☀️")
+
+        self.light_mode_btn = QPushButton("  LIGHT  ")
+        self.light_mode_btn.setObjectName("themeBtnLight")
+        self.light_mode_btn.setFixedHeight(30)
+        self.light_mode_btn.setCursor(Qt.PointingHandCursor)
         self.light_mode_btn.clicked.connect(self.apply_light_theme)
-        self.close_btn = QPushButton("❌")
+
+        self.close_btn = QPushButton("X")
+        self.close_btn.setObjectName("closeBtn")
+        self.close_btn.setFixedSize(30, 30)
+        self.close_btn.setCursor(Qt.PointingHandCursor)
         self.close_btn.clicked.connect(self.close)
-        self.title = QLabel("Welcome To VorCleaner")
-        self.title.setAlignment(Qt.AlignCenter)
-        self.title.setFont(QFont("Segoe UI", 14, QFont.Bold))
 
-        header_layout.addWidget(self.dark_mode_btn)
-        header_layout.addWidget(self.light_mode_btn)
-        header_layout.addWidget(self.title, 1)
-        header_layout.addWidget(self.close_btn)
+        header.addWidget(self.dark_mode_btn)
+        header.addSpacing(6)
+        header.addWidget(self.light_mode_btn)
+        header.addSpacing(10)
+        header.addWidget(self.close_btn)
 
-        # BODY
-        self.disable_btn = QPushButton("Disable Update")
-        self.disable_btn.clicked.connect(self.toggle_windows_update)
-        self.clean_btn = QPushButton("Clean Now")
+        main_layout.addLayout(header)
+        main_layout.addSpacing(20)
+
+        # ── STATUS CARD ───────────────────────────────────────────────────────
+        self.status_card = GlassPanel()
+        status_layout = QVBoxLayout(self.status_card)
+        status_layout.setContentsMargins(20, 16, 20, 16)
+        status_layout.setSpacing(6)
+
+        self.status_icon = QLabel("●")
+        self.status_icon.setObjectName("statusIcon")
+        self.status_icon.setAlignment(Qt.AlignCenter)
+        self.status_icon.setFont(QFont("Segoe UI", 18))
+
+        self.status = QLabel("Ready to clean")
+        self.status.setAlignment(Qt.AlignCenter)
+        self.status.setFont(QFont("Segoe UI", 11))
+        self.status.setObjectName("statusText")
+
+        status_layout.addWidget(self.status_icon)
+        status_layout.addWidget(self.status)
+
+        self._make_shadow(self.status_card, blur=20, offset_y=4, color="#000000")
+        main_layout.addWidget(self.status_card)
+        main_layout.addSpacing(16)
+
+        # ── ACTION BUTTONS ────────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+
+        self.clean_btn = QPushButton("  CLEAN NOW  ")
+        self.clean_btn.setObjectName("cleanBtn")
+        self.clean_btn.setFixedHeight(48)
+        self.clean_btn.setCursor(Qt.PointingHandCursor)
         self.clean_btn.clicked.connect(self.handle_clean)
 
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addWidget(self.disable_btn)
-        buttons_layout.addWidget(self.clean_btn)
+        self.disable_btn = QPushButton("  DISABLE UPDATE  ")
+        self.disable_btn.setObjectName("updateBtn")
+        self.disable_btn.setFixedHeight(48)
+        self.disable_btn.setCursor(Qt.PointingHandCursor)
+        self.disable_btn.clicked.connect(self.toggle_windows_update)
 
+        btn_row.addWidget(self.clean_btn)
+        btn_row.addWidget(self.disable_btn)
+
+        main_layout.addLayout(btn_row)
+        main_layout.addSpacing(16)
+
+        # ── PROGRESS BAR ──────────────────────────────────────────────────────
         self.progress = QProgressBar()
         self.progress.setValue(0)
         self.progress.setTextVisible(True)
+        self.progress.setFixedHeight(22)
+        self.progress.setObjectName("mainProgress")
+        main_layout.addWidget(self.progress)
+        main_layout.addSpacing(14)
 
-        self.status = QLabel("")
-        self.status.setAlignment(Qt.AlignCenter)
+        # ── LOG PANEL ─────────────────────────────────────────────────────────
+        log_header = QLabel("Activity Log")
+        log_header.setObjectName("logHeader")
+        log_header.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        main_layout.addWidget(log_header)
+        main_layout.addSpacing(6)
 
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
-        self.log_output.setFixedHeight(120)
-
-        # FOOTER
-        footer = QLabel("Create By Shayan Ghadamian")
-        footer.setAlignment(Qt.AlignCenter)
-        footer.setFont(QFont("Segoe UI", 9))
-        footer.setStyleSheet("color: gray; padding-top: 8px;")
-
-        # COMBINE
-        main_layout.addLayout(header_layout)
-        main_layout.addLayout(buttons_layout)
-        main_layout.addWidget(self.progress)
-        main_layout.addWidget(self.status)
+        self.log_output.setObjectName("logOutput")
+        self.log_output.setFixedHeight(160)
         main_layout.addWidget(self.log_output)
+        main_layout.addSpacing(12)
+
+        # ── FOOTER ────────────────────────────────────────────────────────────
+        footer = QLabel("Created by Shayan Ghadamian")
+        footer.setAlignment(Qt.AlignCenter)
+        footer.setFont(QFont("Segoe UI", 8))
+        footer.setObjectName("footerText")
         main_layout.addWidget(footer)
 
         self.setLayout(main_layout)
 
+    # ── Actions ───────────────────────────────────────────────────────────────
     def handle_clean(self):
-        self.status.setText("Cleaning in progress...")
+        self.status_icon.setText("◌")
+        self.status_icon.setStyleSheet("color: #00d4ff;")
+        self.status.setText("Scanning & cleaning system junk...")
         self.clean_btn.setEnabled(False)
+        self.disable_btn.setEnabled(False)
         self.progress.setValue(0)
         self.log_output.clear()
 
@@ -348,8 +485,12 @@ class CacheCleanerApp(QWidget):
         self.cleaner.start()
 
     def on_clean_done(self, total_deleted):
-        self.status.setText(f"✅ Deleted {total_deleted} files (and emptied Recycle Bin).")
+        c = DARK if self.current_theme == "dark" else LIGHT
+        self.status_icon.setText("●")
+        self.status_icon.setStyleSheet(f"color: {c['success']};")
+        self.status.setText(f"Done — {total_deleted:,} files removed")
         self.clean_btn.setEnabled(True)
+        self.disable_btn.setEnabled(True)
         self.send_notification(f"Cache cleaner completed.\nDeleted {total_deleted} files.")
 
     def log(self, message):
@@ -358,15 +499,16 @@ class CacheCleanerApp(QWidget):
     def send_notification(self, message):
         try:
             notification.notify(
-                title='🧹 Vorcleaner',
+                title="Vorcleaner",
                 message=message,
-                app_name='Vorcleaner',
-                timeout=5
+                app_name="Vorcleaner",
+                timeout=5,
             )
         except Exception as e:
             print(f"Notification error: {e}")
 
     def toggle_windows_update(self):
+        c = DARK if self.current_theme == "dark" else LIGHT
         if not self.updates_disabled:
             command = (
                 'sc stop wuauserv & sc config wuauserv start= disabled & '
@@ -374,8 +516,9 @@ class CacheCleanerApp(QWidget):
                 'sc stop dosvc & sc config dosvc start= disabled & '
                 'reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WaaSMedicSvc" /v Start /t REG_DWORD /d 4 /f'
             )
-            self.log("🔻 Disabling Windows Update...")
-            self.disable_btn.setText("Enable Update")
+            self.log("Windows Update disabled")
+            self.disable_btn.setText("  ENABLE UPDATE  ")
+            self.disable_btn.setObjectName("updateBtnActive")
         else:
             command = (
                 'sc config wuauserv start= auto & sc start wuauserv & '
@@ -383,90 +526,421 @@ class CacheCleanerApp(QWidget):
                 'sc config dosvc start= delayed-auto & sc start dosvc & '
                 'reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WaaSMedicSvc" /v Start /t REG_DWORD /d 3 /f'
             )
-            self.log("✅ Enabling Windows Update...")
-            self.disable_btn.setText("Disable Update")
+            self.log("Windows Update enabled")
+            self.disable_btn.setText("  DISABLE UPDATE  ")
+            self.disable_btn.setObjectName("updateBtn")
 
         subprocess.call(f'cmd /c {command}', shell=True)
         self.updates_disabled = not self.updates_disabled
+        self._refresh_styles()
+
+    # ── Themes ────────────────────────────────────────────────────────────────
+    def _refresh_styles(self):
+        if self.current_theme == "dark":
+            self.apply_dark_theme()
+        else:
+            self.apply_light_theme()
 
     def apply_dark_theme(self):
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1e1e2f;
-                color: #f0f0f0;
+        self.current_theme = "dark"
+        c = DARK
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {c['bg']};
+                color: {c['text']};
                 font-family: 'Segoe UI';
-            }
-            QPushButton {
-                background-color: #2e2e3f;
-                color: white;
-                padding: 8px 16px;
+            }}
+
+            /* ── App Title ── */
+            #appTitle {{
+                color: {c['text']};
+                font-size: 20px;
+                font-weight: bold;
+                padding: 0;
+            }}
+            #appSubtitle {{
+                color: {c['text_dim']};
+                font-size: 9px;
+                padding: 0;
+            }}
+
+            /* ── Glass Panels ── */
+            #glassPanel {{
+                background-color: {c['surface']};
+                border: 1px solid {c['border']};
+                border-radius: 12px;
+            }}
+
+            /* ── Status ── */
+            #statusIcon {{
+                color: {c['accent']};
+                font-size: 18px;
+                background: transparent;
+                border: none;
+            }}
+            #statusText {{
+                color: {c['text']};
+                font-size: 11px;
+                background: transparent;
+                border: none;
+            }}
+
+            /* ── Buttons ── */
+            QPushButton {{
+                border: none;
                 border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #3c3c50;
-            }
-            QProgressBar {
-                background: #2e2e3f;
-                border: 1px solid #555;
-                height: 20px;
+                font-weight: 600;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+            }}
+
+            /* Clean Now — primary CTA */
+            #cleanBtn {{
+                background-color: {c['accent']};
+                color: #000000;
+                font-size: 13px;
+                font-weight: 700;
                 border-radius: 10px;
+                padding: 0 24px;
+            }}
+            #cleanBtn:hover {{
+                background-color: #33ddff;
+            }}
+            #cleanBtn:pressed {{
+                background-color: {c['accent_dim']};
+            }}
+            #cleanBtn:disabled {{
+                background-color: {c['surface3']};
+                color: {c['text_muted']};
+            }}
+
+            /* Update button — secondary */
+            #updateBtn {{
+                background-color: {c['surface2']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                font-size: 11px;
+            }}
+            #updateBtn:hover {{
+                background-color: {c['surface3']};
+                border-color: {c['text_muted']};
+            }}
+            #updateBtn:pressed {{
+                background-color: {c['border']};
+            }}
+
+            /* Update button — active/disabled state */
+            #updateBtnActive {{
+                background-color: {c['danger']};
+                color: #ffffff;
+                border: 1px solid {c['danger']};
+                font-size: 11px;
+                border-radius: 8px;
+            }}
+            #updateBtnActive:hover {{
+                background-color: #ff6b7a;
+            }}
+            #updateBtnActive:pressed {{
+                background-color: {c['danger_dim']};
+            }}
+
+            /* Theme toggle buttons */
+            #themeBtnDark {{
+                background-color: {c['surface2']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            #themeBtnDark:hover {{
+                background-color: {c['surface3']};
+            }}
+
+            #themeBtnLight {{
+                background-color: transparent;
+                color: {c['text_dim']};
+                border: 1px solid transparent;
+                border-radius: 6px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            #themeBtnLight:hover {{
+                background-color: {c['surface2']};
+                border-color: {c['border']};
+                color: {c['text']};
+            }}
+
+            /* Close button */
+            #closeBtn {{
+                background-color: transparent;
+                color: {c['text_dim']};
+                border: none;
+                font-size: 12px;
+                font-weight: 700;
+                border-radius: 6px;
+            }}
+            #closeBtn:hover {{
+                background-color: {c['danger']};
+                color: #ffffff;
+            }}
+
+            /* ── Progress Bar ── */
+            #mainProgress {{
+                background-color: {c['surface2']};
+                border: 1px solid {c['border']};
+                border-radius: 11px;
                 text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #00e676;
-                width: 10px;
+                color: {c['text']};
+                font-size: 9px;
+                font-weight: 600;
+            }}
+            #mainProgress::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {c['accent_dim']}, stop:1 {c['accent']});
                 border-radius: 10px;
-            }
-            QTextEdit {
-                background-color: #2a2a3d;
-                color: #ccc;
-                border: 1px solid #444;
+            }}
+
+            /* ── Log Panel ── */
+            #logHeader {{
+                color: {c['text_dim']};
+                background: transparent;
+                border: none;
+                font-size: 9px;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }}
+            #logOutput {{
+                background-color: {c['log_bg']};
+                color: {c['log_text']};
+                border: 1px solid {c['border']};
                 border-radius: 8px;
-                padding: 6px;
-            }
+                padding: 8px;
+                font-family: 'Cascadia Code', 'Consolas', monospace;
+                font-size: 10px;
+                selection-background-color: {c['accent']};
+                selection-color: #000000;
+            }}
+
+            /* ── Footer ── */
+            #footerText {{
+                color: {c['text_muted']};
+                font-size: 8px;
+                background: transparent;
+                border: none;
+            }}
         """)
+        self._apply_button_shadow()
 
     def apply_light_theme(self):
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa;
-                color: #212121;
+        self.current_theme = "light"
+        c = LIGHT
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {c['bg']};
+                color: {c['text']};
                 font-family: 'Segoe UI';
-            }
-            QPushButton {
-                background-color: #e3e3e3;
-                color: #212121;
-                padding: 8px 16px;
+            }}
+
+            /* ── App Title ── */
+            #appTitle {{
+                color: {c['text']};
+                font-size: 20px;
+                font-weight: bold;
+                padding: 0;
+            }}
+            #appSubtitle {{
+                color: {c['text_dim']};
+                font-size: 9px;
+                padding: 0;
+            }}
+
+            /* ── Glass Panels ── */
+            #glassPanel {{
+                background-color: {c['surface']};
+                border: 1px solid {c['border']};
+                border-radius: 12px;
+            }}
+
+            /* ── Status ── */
+            #statusIcon {{
+                color: {c['accent']};
+                font-size: 18px;
+                background: transparent;
+                border: none;
+            }}
+            #statusText {{
+                color: {c['text']};
+                font-size: 11px;
+                background: transparent;
+                border: none;
+            }}
+
+            /* ── Buttons ── */
+            QPushButton {{
+                border: none;
                 border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #d0d0d0;
-            }
-            QProgressBar {
-                background: #e0e0e0;
-                border: 1px solid #bbb;
-                height: 20px;
+                font-weight: 600;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+            }}
+
+            /* Clean Now — primary CTA */
+            #cleanBtn {{
+                background-color: {c['accent']};
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 700;
                 border-radius: 10px;
+                padding: 0 24px;
+            }}
+            #cleanBtn:hover {{
+                background-color: #3b82f6;
+            }}
+            #cleanBtn:pressed {{
+                background-color: {c['accent_dim']};
+            }}
+            #cleanBtn:disabled {{
+                background-color: {c['surface3']};
+                color: {c['text_muted']};
+            }}
+
+            /* Update button — secondary */
+            #updateBtn {{
+                background-color: {c['surface']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                font-size: 11px;
+            }}
+            #updateBtn:hover {{
+                background-color: {c['surface3']};
+                border-color: {c['text_muted']};
+            }}
+            #updateBtn:pressed {{
+                background-color: {c['border']};
+            }}
+
+            /* Update button — active/disabled state */
+            #updateBtnActive {{
+                background-color: {c['danger']};
+                color: #ffffff;
+                border: 1px solid {c['danger']};
+                font-size: 11px;
+                border-radius: 8px;
+            }}
+            #updateBtnActive:hover {{
+                background-color: #f87171;
+            }}
+            #updateBtnActive:pressed {{
+                background-color: {c['danger_dim']};
+            }}
+
+            /* Theme toggle buttons */
+            #themeBtnDark {{
+                background-color: transparent;
+                color: {c['text_dim']};
+                border: 1px solid transparent;
+                border-radius: 6px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            #themeBtnDark:hover {{
+                background-color: {c['surface3']};
+                border-color: {c['border']};
+                color: {c['text']};
+            }}
+
+            #themeBtnLight {{
+                background-color: {c['surface']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }}
+            #themeBtnLight:hover {{
+                background-color: {c['surface3']};
+            }}
+
+            /* Close button */
+            #closeBtn {{
+                background-color: transparent;
+                color: {c['text_dim']};
+                border: none;
+                font-size: 12px;
+                font-weight: 700;
+                border-radius: 6px;
+            }}
+            #closeBtn:hover {{
+                background-color: {c['danger']};
+                color: #ffffff;
+            }}
+
+            /* ── Progress Bar ── */
+            #mainProgress {{
+                background-color: {c['surface3']};
+                border: 1px solid {c['border']};
+                border-radius: 11px;
                 text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #2196f3;
-                width: 10px;
+                color: {c['text']};
+                font-size: 9px;
+                font-weight: 600;
+            }}
+            #mainProgress::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {c['accent_dim']}, stop:1 {c['accent']});
                 border-radius: 10px;
-            }
-            QTextEdit {
-                background-color: #ffffff;
-                color: #212121;
-                border: 1px solid #ccc;
+            }}
+
+            /* ── Log Panel ── */
+            #logHeader {{
+                color: {c['text_dim']};
+                background: transparent;
+                border: none;
+                font-size: 9px;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }}
+            #logOutput {{
+                background-color: {c['log_bg']};
+                color: {c['log_text']};
+                border: 1px solid {c['border']};
                 border-radius: 8px;
-                padding: 6px;
-            }
+                padding: 8px;
+                font-family: 'Cascadia Code', 'Consolas', monospace;
+                font-size: 10px;
+                selection-background-color: {c['accent']};
+                selection-color: #ffffff;
+            }}
+
+            /* ── Footer ── */
+            #footerText {{
+                color: {c['text_muted']};
+                font-size: 8px;
+                background: transparent;
+                border: none;
+            }}
         """)
+        self._apply_button_shadow()
+
+    def _apply_button_shadow(self):
+        self._make_shadow(self.clean_btn, blur=20, offset_y=3,
+                          color="#00d4ff" if self.current_theme == "dark" else "#2563eb")
+        self._make_shadow(self.status_card, blur=16, offset_y=4, color="#000000")
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon("vorcleaner.ico"))
+
+    # Apply base font
+    font = QFont("Segoe UI", 10)
+    app.setFont(font)
+
     win = CacheCleanerApp()
     win.show()
     sys.exit(app.exec_())
