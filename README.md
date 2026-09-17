@@ -77,11 +77,6 @@ Vorcleaner/
 ├── vorcleaner.ico
 ├── requirements.txt
 ├── README.md
-└── ui/
-    ├── __init__.py
-    ├── main_window.py
-    ├── styles.py
-    └── widgets.py
 ```
 
 ---
